@@ -2,6 +2,7 @@ package com.spotify.netty4.handler.codec.zmtp;
 
 import com.google.common.base.Strings;
 
+import io.netty.channel.Channel;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -38,6 +39,7 @@ public class ZMTPFramingEncoderTest {
   @Mock ChannelHandlerContext ctx;
   @Mock ChannelPromise promise;
   @Mock EventExecutor executor;
+  @Mock Channel channel;
 
   @Captor ArgumentCaptor<ByteBuf> bufCaptor;
 
@@ -45,6 +47,7 @@ public class ZMTPFramingEncoderTest {
 
   @Before
   public void setUp() {
+    when(ctx.channel()).thenReturn(channel);
     when(ctx.write(bufCaptor.capture(), any(ChannelPromise.class))).thenReturn(promise);
     when(ctx.alloc()).thenReturn(ByteBufAllocator.DEFAULT);
     when(ctx.executor()).thenReturn(executor);
@@ -67,11 +70,14 @@ public class ZMTPFramingEncoderTest {
     enc.write(ctx, message, promise);
     enc.flush(ctx);
     final ByteBuf buf = bufCaptor.getValue();
-    assertThat(buf, is(buf(4, 1, 0x69, 0x64, 0x30,
-                           4, 1, 0x69, 0x64, 0x31,
-                           1, 1,
-                           3, 0, 0x66, 0x30)));
-    buf.release();
+    try {
+      assertThat(buf, is(buf(4, 1, 0x69, 0x64, 0x30,
+                             4, 1, 0x69, 0x64, 0x31,
+                             1, 1,
+                             3, 0, 0x66, 0x30)));
+    } finally {
+      release(buf);
+    }
   }
 
   @Test
@@ -91,39 +97,52 @@ public class ZMTPFramingEncoderTest {
     enc.write(ctx, message, promise);
     enc.flush(ctx);
     final ByteBuf buf = bufCaptor.getValue();
-    assertThat(buf, is(buf(1, 3, 0x69, 0x64, 0x30,
-                           1, 3, 0x69, 0x64, 0x31,
-                           1, 0,
-                           0, 2, 0x66, 0x30)));
-    buf.release();
+    try {
+      assertThat(buf, is(buf(1, 3, 0x69, 0x64, 0x30,
+                             1, 3, 0x69, 0x64, 0x31,
+                             1, 0,
+                             0, 2, 0x66, 0x30)));
+    } finally {
+      release(buf);
+    }
   }
 
   @Test
   public void testEncodeZMTP2Long() throws Exception {
     ZMTPMessage message = ZMTPMessage.fromUTF8(ALLOC, "id0", "", LARGE_FILL);
     ByteBuf buf = Unpooled.buffer();
-    buf.writeBytes(bytes(1, 3, 0x69, 0x64, 0x30,
-                         1, 0,
-                         2, 0, 0, 0, 0, 0, 0, 0x01, 0xf4));
-    buf.writeBytes(LARGE_FILL.getBytes(UTF_8));
+    ByteBuf buf2 = null;
+    try {
+      buf.writeBytes(bytes(1, 3, 0x69, 0x64, 0x30,
+                           1, 0,
+                           2, 0, 0, 0, 0, 0, 0, 0x01, 0xf4));
+      buf.writeBytes(LARGE_FILL.getBytes(UTF_8));
 
-    ZMTPConfig config = ZMTPConfig.builder()
-        .protocol(ZMTP20)
-        .socketType(DEALER)
-        .build();
-    ZMTPSession session = new ZMTPSession(config);
+      ZMTPConfig config = ZMTPConfig.builder()
+                                    .protocol(ZMTP20)
+                                    .socketType(DEALER)
+                                    .build();
+      ZMTPSession session = new ZMTPSession(config);
 
-    session.handshakeSuccess(ZMTPHandshake.of(ZMTPVersion.ZMTP20, ANONYMOUS));
+      session.handshakeSuccess(ZMTPHandshake.of(ZMTPVersion.ZMTP20, ANONYMOUS));
 
-    ZMTPFramingEncoder enc = new ZMTPFramingEncoder(session, new ZMTPMessageEncoder());
+      ZMTPFramingEncoder enc = new ZMTPFramingEncoder(session, new ZMTPMessageEncoder());
 
-    enc.write(ctx, message, promise);
-    enc.flush(ctx);
-    final ByteBuf buf2 = bufCaptor.getValue();
+      enc.write(ctx, message, promise);
+      enc.flush(ctx);
+      buf2 = bufCaptor.getValue();
 
-    assertThat(buf, is(buf2));
+      assertThat(buf, is(buf2));
+    } finally {
+      release(buf);
+      release(buf2);
+    }
+  }
 
-    buf.release();
-    buf2.release();
+
+  private void release(final ByteBuf buf) {
+    if(buf != null) {
+      buf.release();
+    }
   }
 }

@@ -98,6 +98,8 @@ class ZMTPFramingEncoder extends ChannelOutboundHandlerAdapter {
     ctx.flush();
   }
 
+  //TODO this overlaps with https://github.com/netty/netty/blob/4.1/codec-http2/src/main/java/io/netty/handler/codec/http2/Http2CodecUtil.java#L261-L398
+  //Which looks like it acts differently
   private static class AggregatePromise extends DefaultChannelPromise {
 
     private final ChannelPromise[] promises;
