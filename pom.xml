@@ -3,7 +3,7 @@
 
   <groupId>com.spotify</groupId>
   <artifactId>netty4-zmtp</artifactId>
-  <version>0.5.0-mbr-SNAPSHOT</version>
+  <version>0.5.0-mbr</version>
   <packaging>jar</packaging>
 
   <name>netty-zmtp</name>
